@@ -2,11 +2,9 @@
 name = "py_omop2neo4j_lpg"
 version = "0.2.0"
 description = "A Python package to orchestrate the migration of OMOP vocabulary tables from PostgreSQL to a Labeled Property Graph (LPG) in Neo4j."
-authors = [
-  { name="Gowtham Adamane Rao", email="rao@ohdsi.org" },
-]
+authors = ["Gowtham Adamane Rao <rao@ohdsi.org>"]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "Prosperity Public License 3.0.0"
 homepage = "https://github.com/gowthamrao/py-omop2neo4j-lpg"
 repository = "https://github.com/gowthamrao/py-omop2neo4j-lpg"
 classifiers = [
