@@ -166,3 +166,11 @@ The following commands are also available:
     ```bash
     omop2neo4j validate
     ```
+
+## License
+
+This project is **Source-Available** and dual-licensed.
+
+The software is available under the [Prosperity Public License 3.0.0](LICENSE.md). You may use the software for non-commercial purposes, or for a commercial trial period of up to 30 days.
+
+Commercial use beyond the 30-day trial period requires a separate commercial license. Please contact Gowtham Adamane Rao for details.
