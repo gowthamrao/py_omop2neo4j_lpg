@@ -1,0 +1,79 @@
+name: Run Python Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  unit-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2022, macos-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+      - name: Install dependencies
+        run: poetry install --with test
+        shell: bash
+      - name: Run unit tests
+        run: poetry run pytest -m "not integration"
+        shell: bash
+
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fix Workspace Permissions
+        run: sudo chown -R $(whoami) .
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+      - name: Install dependencies
+        run: poetry install --with test
+        shell: bash
+      - name: Set up Docker
+        uses: crazy-max/ghaction-setup-docker@v3
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+        shell: bash
+      - name: Create export directory
+        run: mkdir -p ./export_test && sudo chown -R $(whoami) ./export_test
+        shell: bash
+      - name: Run integration tests
+        run: poetry run pytest -m "integration" --cov=src/py_omop2neo4j_lpg --cov-report=xml
+        shell: bash
+        env:
+          OMOP_SCHEMA: public
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5433
+          POSTGRES_DB: testdb
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          NEO4J_URI: bolt://localhost:7688
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: StrongPass123
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4.0.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: gowthamrao/py_omop2neo4j_lpg

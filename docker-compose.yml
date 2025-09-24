@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j-omop-vocab
+    environment:
+      - NEO4J_AUTH=neo4j/StrongPass123
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4JLABS_PLUGINS=["apoc"]
+      # Example Memory Tuning (Advise user to adjust based on hardware)
+      # Note the double underscores for nested config keys, as per official docs.
+      - NEO4J_server_memory_heap_initial__size=4G
+      - NEO4J_server_memory_heap_max__size=4G
+      - NEO4J_server_memory_pagecache_size=8G
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - ./neo4j/data:/data
+      - ./export:/import # Mount the local export directory to the container's import directory

@@ -1,0 +1,34 @@
+services:
+  postgres-test:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+      - POSTGRES_DB=testdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./tests/sample_data/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  neo4j-test:
+    image: neo4j:latest
+    environment:
+      - NEO4J_AUTH=neo4j/StrongPass123
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
+      - NEO4JLABS_PLUGINS=["apoc"]
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    volumes:
+      - ./export_test:/import
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null --server-response --timeout=2 http://localhost:7474 2>&1 | awk '/^  HTTP/{print $$2}' | grep -q 200"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

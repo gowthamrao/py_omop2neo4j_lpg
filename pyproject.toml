@@ -1,0 +1,49 @@
+[tool.poetry]
+name = "py_omop2neo4j_lpg"
+version = "0.2.0"
+description = "A Python package to orchestrate the migration of OMOP vocabulary tables from PostgreSQL to a Labeled Property Graph (LPG) in Neo4j."
+authors = ["Gowtham Rao <rao@ohdsi.org>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/ohdsi/py_omop2neo4j_lpg"
+repository = "https://github.com/ohdsi/py_omop2neo4j_lpg"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Database",
+]
+packages = [{include = "py_omop2neo4j_lpg", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11.0"
+neo4j = "*"
+pandas = "*"
+numpy = "*"
+click = "*"
+pydantic-settings = "*"
+python-dotenv = "*"
+
+[tool.poetry.group.test.dependencies]
+pytest = "*"
+psycopg2-binary = "*"
+pytest-docker = "*"
+pytest-dotenv = "*"
+pytest-cov = "*"
+
+[tool.poetry.scripts]
+py_omop2neo4j_lpg = "py_omop2neo4j_lpg.cli:cli"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (require docker)",
+]
+env_files = [
+    ".env.test"
+]
