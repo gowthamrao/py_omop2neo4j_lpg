@@ -43,6 +43,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration tests (require docker)",
+    "unit: marks tests as unit tests",
 ]
 env_files = [
     ".env.test"
