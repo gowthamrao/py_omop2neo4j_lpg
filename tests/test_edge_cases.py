@@ -11,6 +11,8 @@ import os
 import pytest
 import psycopg2
 from click.testing import CliRunner
+from unittest.mock import patch
+from neo4j.exceptions import ServiceUnavailable
 
 from py_omop2neo4j_lpg.cli import cli
 from py_omop2neo4j_lpg.config import settings
@@ -150,3 +152,28 @@ def test_etl_with_special_characters(pristine_db, neo4j_service):
         assert record is not None
         assert record["name"] == special_name
     driver.close()
+
+
+@pytest.mark.unit
+@patch("py_omop2neo4j_lpg.loading.glob")
+@patch("py_omop2neo4j_lpg.loading.get_driver")
+@patch("py_omop2neo4j_lpg.loading._execute_queries", side_effect=Exception("Malformed CSV"))
+def test_load_csv_command_malformed_csv(mock_execute, mock_get_driver, mock_glob):
+    # Test case where the CSV file is malformed
+    runner = CliRunner()
+    mock_glob.return_value = ['dummy.csv']
+    result = runner.invoke(cli, ["load-csv"])
+    assert result.exit_code != 0
+    assert "An unexpected error occurred: Malformed CSV" in result.output
+
+
+@pytest.mark.unit
+@patch("py_omop2neo4j_lpg.loading.glob")
+@patch("py_omop2neo4j_lpg.loading.get_driver", side_effect=ServiceUnavailable("Connection error"))
+def test_load_csv_command_neo4j_unavailable(mock_get_driver, mock_glob):
+    # Test case where the Neo4j instance is unavailable
+    runner = CliRunner()
+    mock_glob.return_value = ['dummy.csv']
+    result = runner.invoke(cli, ["load-csv"])
+    assert result.exit_code != 0
+    assert "An unexpected error occurred: Connection error" in result.output
