@@ -89,6 +89,8 @@ def create_constraints_and_indexes(driver: Driver):
 import os
 import click
 from glob import glob
+import pathlib
+import urllib.parse
 
 def run_load_csv(batch_size: int | None = None):
     """
@@ -132,32 +134,60 @@ def run_load_csv(batch_size: int | None = None):
 def get_loading_queries(batch_size: int) -> list[str]:
     """Returns a list of all LOAD CSV queries."""
 
-    # NOTE: The file paths ('file:///...') are relative to the Neo4j container's `/import` directory.
-    # The user is responsible for mounting the local `export` directory to `/import` in Docker.
+    # The base directory inside the container that is the mount point.
+    # This corresponds to the `volumes` section in the docker-compose files.
+    # For tests, it's `export_test`, for production, it's `export`.
+    container_import_dir = pathlib.Path("/import")
 
-    load_domains = """
-    LOAD CSV WITH HEADERS FROM 'file:///domain.csv' AS row
-    CREATE (d:Domain {
+    def get_file_uri(filename: str) -> str:
+        """
+        Constructs a full, URL-encoded file URI for a given CSV filename,
+        making it relative to the container's /import directory.
+        """
+        # Get the full path to the CSV file on the host
+        host_csv_path = pathlib.Path(settings.EXPORT_DIR) / filename
+
+        # This is the base directory on the host that is mounted to /import
+        # We assume the parent of EXPORT_DIR or EXPORT_DIR itself is the mount point.
+        # In tests, EXPORT_DIR is `export_test/dir with spaces`, so parent is `export_test`.
+        # In production, EXPORT_DIR is `export`, so it is its own parent in a sense.
+
+        # A simple heuristic: find which known base dir is a parent of the csv path
+        host_mount_point = pathlib.Path('export_test')
+        if not str(host_csv_path).startswith('export_test'):
+            host_mount_point = pathlib.Path('export')
+
+        # Get the path relative to the mount point
+        relative_path = host_csv_path.relative_to(host_mount_point)
+
+        # URL-encode the relative path to handle spaces, etc.
+        encoded_path = urllib.parse.quote(str(relative_path))
+
+        return f"file:///{encoded_path}"
+
+    load_domains = f"""
+    LOAD CSV WITH HEADERS FROM '{get_file_uri('domain.csv')}' AS row
+    CREATE (d:Domain {{
         domain_id: row.domain_id,
         name: row.domain_name,
         concept_id: toInteger(row.domain_concept_id)
-    });
+    }});
     """
 
-    load_vocabularies = """
-    LOAD CSV WITH HEADERS FROM 'file:///vocabulary.csv' AS row
-    CREATE (v:Vocabulary {
+    load_vocabularies = f"""
+    LOAD CSV WITH HEADERS FROM '{get_file_uri('vocabulary.csv')}' AS row
+    CREATE (v:Vocabulary {{
         vocabulary_id: row.vocabulary_id,
         name: row.vocabulary_name,
         concept_id: toInteger(row.vocabulary_concept_id),
         vocabulary_reference: row.vocabulary_reference,
         vocabulary_version: row.vocabulary_version
-    });
+    }});
     """
 
     load_concepts = f"""
     CALL {{
-        LOAD CSV WITH HEADERS FROM 'file:///concepts_optimized.csv' AS row
+        LOAD CSV WITH HEADERS FROM '{get_file_uri('concepts_optimized.csv')}' AS row
         // 1. Create the Concept node with base properties
         CREATE (c:Concept {{
             concept_id: toInteger(row.concept_id),
@@ -196,7 +226,7 @@ def get_loading_queries(batch_size: int) -> list[str]:
 
     load_relationships = f"""
     CALL {{
-        LOAD CSV WITH HEADERS FROM 'file:///concept_relationship.csv' AS row
+        LOAD CSV WITH HEADERS FROM '{get_file_uri('concept_relationship.csv')}' AS row
         MATCH (c1:Concept {{concept_id: toInteger(row.concept_id_1)}})
         MATCH (c2:Concept {{concept_id: toInteger(row.concept_id_2)}})
         WITH c1, c2, row, toupper(apoc.text.replace(row.relationship_id, '[^A-Za-z0-9_]+', '_')) AS relType
@@ -212,7 +242,7 @@ def get_loading_queries(batch_size: int) -> list[str]:
 
     load_ancestors = f"""
     CALL {{
-        LOAD CSV WITH HEADERS FROM 'file:///concept_ancestor.csv' AS row
+        LOAD CSV WITH HEADERS FROM '{get_file_uri('concept_ancestor.csv')}' AS row
         MATCH (d:Concept {{concept_id: toInteger(row.descendant_concept_id)}})
         MATCH (a:Concept {{concept_id: toInteger(row.ancestor_concept_id)}})
         CREATE (d)-[r:HAS_ANCESTOR]->(a)
