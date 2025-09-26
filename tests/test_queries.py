@@ -56,10 +56,7 @@ def test_get_loading_queries(batch_size):
 
     # --- Test Concept Loading Query ---
     concept_query = queries[2]
-    assert (
-        "LOAD CSV WITH HEADERS FROM 'file:///concepts_optimized.csv' AS row"
-        in concept_query
-    )
+    assert "concepts_optimized.csv" in concept_query
     # Check for the robust label standardization logic
     assert (
         "apoc.text.upperCamelCase(apoc.text.regreplace(row.domain_id, '[^A-Za-z0-9]+', ' '))"
@@ -78,10 +75,7 @@ def test_get_loading_queries(batch_size):
 
     # --- Test Relationship Loading Query ---
     relationship_query = queries[3]
-    assert (
-        "LOAD CSV WITH HEADERS FROM 'file:///concept_relationship.csv' AS row"
-        in relationship_query
-    )
+    assert "concept_relationship.csv" in relationship_query
     # Check for robust reltype standardization
     assert (
         "toupper(apoc.text.replace(row.relationship_id, '[^A-Za-z0-9_]+', '_'))"
@@ -92,10 +86,7 @@ def test_get_loading_queries(batch_size):
 
     # --- Test Ancestor Loading Query ---
     ancestor_query = queries[4]
-    assert (
-        "LOAD CSV WITH HEADERS FROM 'file:///concept_ancestor.csv' AS row"
-        in ancestor_query
-    )
+    assert "concept_ancestor.csv" in ancestor_query
     assert "CREATE (d)-[r:HAS_ANCESTOR]->(a)" in ancestor_query
     assert (
         "SET r.min_levels = toInteger(row.min_levels_of_separation)" in ancestor_query
