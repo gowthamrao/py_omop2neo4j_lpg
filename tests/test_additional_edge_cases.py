@@ -96,25 +96,20 @@ def test_load_csv_with_duplicate_pk(pristine_db, neo4j_service):
 
 
 @pytest.mark.unit
-def test_extract_with_readonly_directory():
+@patch("py_omop2neo4j_lpg.extraction.psycopg2.connect")
+@patch("py_omop2neo4j_lpg.extraction.open", side_effect=PermissionError("Permission denied"))
+def test_extract_permission_error_on_write(mock_open, mock_connect):
     """
-    Tests that the `extract` command fails gracefully if the EXPORT_DIR
-    is not writable.
+    Tests that `extract` fails gracefully with a PermissionError during file write,
+    simulated by mocking `open`. This is a platform-independent unit test.
     """
     runner = CliRunner()
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Make the directory read-only
-        os.chmod(temp_dir, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
-
-        # Patch the settings to use the read-only directory
         with patch.object(settings, "EXPORT_DIR", temp_dir):
             result = runner.invoke(cli, ["extract"])
             assert result.exit_code != 0
-            assert "is not writable" in result.output
-
-        # It's good practice to restore permissions to allow cleanup,
-        # though TemporaryDirectory handles it well.
-        os.chmod(temp_dir, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR)
+            assert "Failed to write" in result.output
+            assert "Permission denied" in result.output
 
 
 @pytest.mark.unit
