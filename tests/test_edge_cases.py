@@ -8,15 +8,14 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
-import pytest
-import psycopg2
-from click.testing import CliRunner
 from unittest.mock import patch
-from neo4j.exceptions import ServiceUnavailable
 
+import psycopg2
+import pytest
+from click.testing import CliRunner
+from neo4j.exceptions import ServiceUnavailable
 from py_omop2neo4j_lpg.cli import cli
 from py_omop2neo4j_lpg.config import settings
-
 
 TABLES_TO_TRUNCATE = [
     "concept",
@@ -43,7 +42,7 @@ def test_etl_with_empty_tables(pristine_db, neo4j_service):
             port=5433,
             user="testuser",
             password="testpass",
-            dbname="testdb"
+            dbname="testdb",
         )
         with conn.cursor() as cursor:
             for table in TABLES_TO_TRUNCATE:
@@ -84,7 +83,7 @@ def test_extract_with_missing_table(pristine_db):
             port=5433,
             user="testuser",
             password="testpass",
-            dbname="testdb"
+            dbname="testdb",
         )
         with conn.cursor() as cursor:
             # Drop a required table
@@ -100,8 +99,9 @@ def test_extract_with_missing_table(pristine_db):
     # Expect a non-zero exit code indicating failure
     assert result.exit_code != 0
     # Expect a clear error message from ClickException
-    assert "Error:" in result.output
-    assert "relation \"public.concept\" does not exist" in result.output
+    assert "Error:" in result.output and (
+        'relation "public.concept" does not exist' in result.output
+    )
 
 
 @pytest.mark.integration
@@ -119,16 +119,22 @@ def test_etl_with_special_characters(pristine_db, neo4j_service):
             port=5433,
             user="testuser",
             password="testpass",
-            dbname="testdb"
+            dbname="testdb",
         )
         with conn.cursor() as cursor:
             # Add a concept with special characters in its name
             cursor.execute(
                 """
-                INSERT INTO concept (concept_id, concept_name, domain_id, vocabulary_id, concept_class_id, standard_concept, concept_code, valid_start_date, valid_end_date, invalid_reason)
-                VALUES (%s, %s, 'Drug', 'RxNorm', 'Ingredient', 'S', 'SPL_CHAR', '2000-01-01', '2099-12-31', NULL);
+                INSERT INTO concept (
+                    concept_id, concept_name, domain_id, vocabulary_id,
+                    concept_class_id, standard_concept, concept_code,
+                    valid_start_date, valid_end_date, invalid_reason
+                ) VALUES (
+                    %s, %s, 'Drug', 'RxNorm', 'Ingredient', 'S',
+                    'SPL_CHAR', '2000-01-01', '2099-12-31', NULL
+                );
                 """,
-                (special_concept_id, special_name)
+                (special_concept_id, special_name),
             )
         conn.commit()
         conn.close()
@@ -142,11 +148,14 @@ def test_etl_with_special_characters(pristine_db, neo4j_service):
 
     # Verify the data in Neo4j
     from neo4j import GraphDatabase
-    driver = GraphDatabase.driver("bolt://localhost:7688", auth=("neo4j", "StrongPass123"))
+
+    driver = GraphDatabase.driver(
+        "bolt://localhost:7688", auth=("neo4j", "StrongPass123")
+    )
     with driver.session() as session:
         result = session.run(
             "MATCH (c:Concept {concept_id: $id}) RETURN c.name AS name",
-            id=special_concept_id
+            id=special_concept_id,
         )
         record = result.single()
         assert record is not None
@@ -157,11 +166,14 @@ def test_etl_with_special_characters(pristine_db, neo4j_service):
 @pytest.mark.unit
 @patch("py_omop2neo4j_lpg.loading.glob")
 @patch("py_omop2neo4j_lpg.loading.get_driver")
-@patch("py_omop2neo4j_lpg.loading._execute_queries", side_effect=Exception("Malformed CSV"))
+@patch(
+    "py_omop2neo4j_lpg.loading._execute_queries",
+    side_effect=Exception("Malformed CSV"),
+)
 def test_load_csv_command_malformed_csv(mock_execute, mock_get_driver, mock_glob):
     # Test case where the CSV file is malformed
     runner = CliRunner()
-    mock_glob.return_value = ['dummy.csv']
+    mock_glob.return_value = ["dummy.csv"]
     result = runner.invoke(cli, ["load-csv"])
     assert result.exit_code != 0
     assert "An unexpected error occurred: Malformed CSV" in result.output
@@ -169,11 +181,14 @@ def test_load_csv_command_malformed_csv(mock_execute, mock_get_driver, mock_glob
 
 @pytest.mark.unit
 @patch("py_omop2neo4j_lpg.loading.glob")
-@patch("py_omop2neo4j_lpg.loading.get_driver", side_effect=ServiceUnavailable("Connection error"))
+@patch(
+    "py_omop2neo4j_lpg.loading.get_driver",
+    side_effect=ServiceUnavailable("Connection error"),
+)
 def test_load_csv_command_neo4j_unavailable(mock_get_driver, mock_glob):
     # Test case where the Neo4j instance is unavailable
     runner = CliRunner()
-    mock_glob.return_value = ['dummy.csv']
+    mock_glob.return_value = ["dummy.csv"]
     result = runner.invoke(cli, ["load-csv"])
     assert result.exit_code != 0
     assert "An unexpected error occurred: Connection error" in result.output

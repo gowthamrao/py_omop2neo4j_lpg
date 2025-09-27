@@ -8,10 +8,11 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import logging
+import os
 import sys
 import tempfile
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import os
 
 
 # --- Settings ---

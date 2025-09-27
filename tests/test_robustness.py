@@ -8,22 +8,20 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
+import time
+
+import psycopg2
 import pytest
 from click.testing import CliRunner
-
+from neo4j import GraphDatabase
 from py_omop2neo4j_lpg.cli import cli
 from py_omop2neo4j_lpg.config import settings
 
 
 @pytest.fixture(scope="session")
 def docker_compose_file(pytestconfig):
-    return os.path.join(
-        str(pytestconfig.rootdir), "docker-compose.test.yml"
-    )
+    return os.path.join(str(pytestconfig.rootdir), "docker-compose.test.yml")
 
-
-import psycopg2
-import time
 
 @pytest.fixture(scope="session")
 def postgres_service(docker_services):
@@ -36,7 +34,7 @@ def postgres_service(docker_services):
                 port=5433,
                 user="testuser",
                 password="testpass",
-                dbname="testdb"
+                dbname="testdb",
             )
             conn.close()
             break
@@ -46,15 +44,15 @@ def postgres_service(docker_services):
         pytest.fail("PostgreSQL did not become available in 60 seconds.")
 
 
-from neo4j import GraphDatabase
-
 @pytest.fixture(scope="session")
 def neo4j_service(docker_services):
     # Healthcheck for neo4j
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
-            driver = GraphDatabase.driver("bolt://localhost:7688", auth=("neo4j", "StrongPass123"))
+            driver = GraphDatabase.driver(
+                "bolt://localhost:7688", auth=("neo4j", "StrongPass123")
+            )
             driver.verify_connectivity()
             driver.close()
             break
@@ -64,8 +62,6 @@ def neo4j_service(docker_services):
         pytest.fail("Neo4j did not become available in 60 seconds.")
 
 
-import pytest
-
 @pytest.mark.integration
 def test_etl_idempotency_and_clear(pristine_db, neo4j_service, docker_services):
     try:
@@ -74,7 +70,9 @@ def test_etl_idempotency_and_clear(pristine_db, neo4j_service, docker_services):
         # 1. Extract
         result_extract = runner.invoke(cli, ["extract"])
         assert result_extract.exit_code == 0
-        assert os.path.exists(os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv"))
+        assert os.path.exists(
+            os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv")
+        )
 
         #
         #
@@ -105,7 +103,6 @@ def test_etl_idempotency_and_clear(pristine_db, neo4j_service, docker_services):
         assert result_validate_3.exit_code == 0
         assert '"node_counts_by_label_combination": {}' in result_validate_3.output
         assert '"relationship_counts_by_type": {}' in result_validate_3.output
-
 
     finally:
         # Clean up is handled by the clean_export_dir fixture

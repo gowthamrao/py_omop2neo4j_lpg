@@ -8,14 +8,14 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
+import shutil
+import tempfile
+
 import pytest
 from click.testing import CliRunner
-
 from py_omop2neo4j_lpg.cli import cli
 from py_omop2neo4j_lpg.config import settings
 
-
-import pytest
 
 @pytest.mark.integration
 def test_full_etl_pipeline(pristine_db, neo4j_service, docker_services):
@@ -25,7 +25,9 @@ def test_full_etl_pipeline(pristine_db, neo4j_service, docker_services):
         # 1. Extract
         result_extract = runner.invoke(cli, ["extract"])
         assert result_extract.exit_code == 0
-        assert os.path.exists(os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv"))
+        assert os.path.exists(
+            os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv")
+        )
 
         # 2. Load CSV
         result_load = runner.invoke(cli, ["load-csv"])
@@ -48,9 +50,6 @@ def test_full_etl_pipeline(pristine_db, neo4j_service, docker_services):
         print(logs)
 
 
-import tempfile
-import shutil
-
 @pytest.mark.integration
 def test_prepare_bulk_workflow(pristine_db, neo4j_service, docker_services):
     runner = CliRunner()
@@ -61,7 +60,9 @@ def test_prepare_bulk_workflow(pristine_db, neo4j_service, docker_services):
         # 1. Extract
         result_extract = runner.invoke(cli, ["extract"])
         assert result_extract.exit_code == 0
-        assert os.path.exists(os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv"))
+        assert os.path.exists(
+            os.path.join(settings.EXPORT_DIR, "concepts_optimized.csv")
+        )
 
         # 2. Prepare for bulk import
         result_prepare = runner.invoke(
@@ -70,10 +71,8 @@ def test_prepare_bulk_workflow(pristine_db, neo4j_service, docker_services):
         assert result_prepare.exit_code == 0
 
         # 3. Verify file creation
-        # The `prepare-bulk` command creates several files. We'll check for a few key ones.
         assert os.path.exists(os.path.join(bulk_import_dir, "nodes_concept.csv"))
         assert os.path.exists(os.path.join(bulk_import_dir, "rels_semantic.csv"))
-
 
         # 4. Verify command output
         assert "neo4j-admin database import full" in result_prepare.output

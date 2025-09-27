@@ -15,12 +15,11 @@ stages of the ETL process, including extraction, loading, and database
 management tasks.
 """
 
-import click
 import json
-from . import extraction
-from . import loading
-from . import transformation
-from . import validation
+
+import click
+
+from . import extraction, loading, transformation, validation
 from .config import get_logger, settings
 
 logger = get_logger(__name__)
@@ -42,10 +41,10 @@ def extract():
         extraction.export_tables_to_csv()
         logger.info("CLI: Extraction process completed successfully.")
     except click.ClickException:
-        # Re-raise exceptions from the business logic that are already formatted for the CLI
+        # Re-raise exceptions from business logic that are already CLI-formatted
         raise
     except Exception as e:
-        logger.error(f"CLI: An unexpected error occurred during extraction: {e}")
+        logger.error("CLI: An unexpected error occurred during extraction: %s", e)
         raise click.ClickException(f"An unexpected error occurred: {e}")
 
 
@@ -64,7 +63,7 @@ def clear_db():
     except click.ClickException:
         raise
     except Exception as e:
-        logger.error(f"CLI: An error occurred while clearing the database: {e}")
+        logger.error("CLI: An error occurred while clearing the database: %s", e)
         raise click.ClickException(f"An unexpected error occurred: {e}")
 
 
@@ -87,7 +86,9 @@ def load_csv(batch_size):
     except click.ClickException:
         raise
     except Exception as e:
-        logger.error(f"CLI: An unexpected error occurred during the LOAD CSV process: {e}")
+        logger.error(
+            "CLI: An unexpected error occurred during the LOAD CSV process: %s", e
+        )
         raise click.ClickException(f"An unexpected error occurred: {e}")
 
 
@@ -104,7 +105,7 @@ def load_csv(batch_size):
     default="bulk_import",
     show_default=True,
     type=click.Path(),
-    help="Directory to save the formatted files for neo4j-admin import.",
+    help="Directory to save formatted files for neo4j-admin import.",
 )
 def prepare_bulk(chunk_size, import_dir):
     """
@@ -123,17 +124,22 @@ def prepare_bulk(chunk_size, import_dir):
             click.secho("2. Run the following command from your terminal:", fg="yellow")
             click.echo(command)
             click.secho(
-                "\n3. After the import is complete, start the Neo4j service.", fg="yellow"
+                "\n3. After the import is complete, start the Neo4j service.",
+                fg="yellow",
             )
             click.secho(
-                "4. Run `py_omop2neo4j_lpg create-indexes` to build the database schema.",
+                "4. Run `py_omop2neo4j_lpg create-indexes` to build the "
+                "database schema.",
                 fg="yellow",
             )
 
     except click.ClickException:
         raise
     except Exception as e:
-        logger.error(f"CLI: An unexpected error occurred during bulk import preparation: {e}")
+        logger.error(
+            "CLI: An unexpected error occurred during bulk import preparation: %s",
+            e,
+        )
         raise click.ClickException(f"An unexpected error occurred: {e}")
 
 
@@ -152,7 +158,7 @@ def create_indexes():
     except click.ClickException:
         raise
     except Exception as e:
-        logger.error(f"CLI: An error occurred during index/constraint creation: {e}")
+        logger.error("CLI: An error occurred during index/constraint creation: %s", e)
         raise click.ClickException(f"An unexpected error occurred: {e}")
 
 
@@ -175,7 +181,7 @@ def validate():
     except click.ClickException:
         raise
     except Exception as e:
-        logger.error(f"CLI: A critical error occurred during validation: {e}")
+        logger.error("CLI: A critical error occurred during validation: %s", e)
         raise click.ClickException(f"A critical error occurred during validation: {e}")
 
 

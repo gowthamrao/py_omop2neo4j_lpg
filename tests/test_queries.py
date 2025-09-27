@@ -58,14 +58,15 @@ def test_get_loading_queries(batch_size):
     concept_query = queries[2]
     assert "concepts_optimized.csv" in concept_query
     # Check for the robust label standardization logic
-    assert (
-        "apoc.text.upperCamelCase(apoc.text.regreplace(row.domain_id, '[^A-Za-z0-9]+', ' '))"
-        in concept_query
+    expected_label_logic = (
+        "apoc.text.upperCamelCase(apoc.text.regreplace(row.domain_id, "
+        "'[^A-Za-z0-9]+', ' '))"
     )
+    assert expected_label_logic in concept_query
     # Check for conditional standard label
     assert (
-            "FOREACH (x IN CASE WHEN row.standard_concept = 'S' THEN [1] ELSE [] END |"
-            in concept_query
+        "FOREACH (x IN CASE WHEN row.standard_concept = 'S' THEN [1] ELSE [] END |"
+        in concept_query
     )
     # Check for batching
     assert f"IN TRANSACTIONS OF {batch_size} ROWS" in concept_query

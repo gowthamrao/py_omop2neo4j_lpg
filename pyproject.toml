@@ -32,6 +32,9 @@ psycopg2-binary = "*"
 pytest-docker = "*"
 pytest-dotenv = "*"
 pytest-cov = "*"
+ruff = "*"
+mypy = "*"
+pre-commit = "*"
 
 [tool.poetry.scripts]
 py_omop2neo4j_lpg = "py_omop2neo4j_lpg.cli:cli"
@@ -48,3 +51,15 @@ markers = [
 env_files = [
     ".env.test"
 ]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

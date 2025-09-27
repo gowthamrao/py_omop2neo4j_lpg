@@ -8,8 +8,11 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
+
+import click
 import psycopg2
-from .config import settings, logger
+
+from .config import logger, settings
 
 
 def get_sql_queries(schema: str) -> dict[str, str]:
@@ -38,8 +41,14 @@ def get_sql_queries(schema: str) -> dict[str, str]:
                     c.valid_start_date, c.valid_end_date, c.invalid_reason
             ) TO STDOUT WITH CSV HEADER FORCE QUOTE *;
         """,
-        "domain.csv": f"COPY (SELECT * FROM {schema}.domain) TO STDOUT WITH CSV HEADER FORCE QUOTE *;",
-        "vocabulary.csv": f"COPY (SELECT * FROM {schema}.vocabulary) TO STDOUT WITH CSV HEADER FORCE QUOTE *;",
+        "domain.csv": (
+            f"COPY (SELECT * FROM {schema}.domain) "
+            "TO STDOUT WITH CSV HEADER FORCE QUOTE *;"
+        ),
+        "vocabulary.csv": (
+            f"COPY (SELECT * FROM {schema}.vocabulary) "
+            "TO STDOUT WITH CSV HEADER FORCE QUOTE *;"
+        ),
         "concept_relationship.csv": f"""
             COPY (
                 SELECT concept_id_1, concept_id_2, relationship_id,
@@ -51,14 +60,13 @@ def get_sql_queries(schema: str) -> dict[str, str]:
         """,
         "concept_ancestor.csv": f"""
             COPY (
-                SELECT descendant_concept_id, ancestor_concept_id, min_levels_of_separation, max_levels_of_separation
+                SELECT descendant_concept_id, ancestor_concept_id,
+                       min_levels_of_separation, max_levels_of_separation
                 FROM {schema}.concept_ancestor
             ) TO STDOUT WITH CSV HEADER FORCE QUOTE *;
         """,
     }
 
-
-import click
 
 def export_tables_to_csv():
     """
@@ -74,14 +82,17 @@ def export_tables_to_csv():
     # Ensure the export directory exists and is writable
     os.makedirs(export_dir, exist_ok=True)
     if not os.access(export_dir, os.W_OK):
-        raise click.ClickException(f"The export directory '{os.path.abspath(export_dir)}' is not writable.")
+        error_msg = (
+            f"The export directory '{os.path.abspath(export_dir)}' " "is not writable."
+        )
+        raise click.ClickException(error_msg)
     logger.info(f"Export directory: {os.path.abspath(export_dir)}")
 
     queries = get_sql_queries(schema)
 
     conn = None
     try:
-        logger.info(f"Connecting to PostgreSQL database '{settings.POSTGRES_DB}'...")
+        logger.info("Connecting to PostgreSQL database '%s'...", settings.POSTGRES_DB)
         conn = psycopg2.connect(
             dbname=settings.POSTGRES_DB,
             user=settings.POSTGRES_USER,
@@ -94,22 +105,29 @@ def export_tables_to_csv():
         with conn.cursor() as cursor:
             for filename, query in queries.items():
                 output_path = os.path.join(export_dir, filename)
-                logger.info(f"Exporting query to '{output_path}'...")
+                logger.info("Exporting query to '%s'...", output_path)
                 try:
                     with open(output_path, "w", encoding="utf-8") as f_out:
                         cursor.copy_expert(query, f_out)
-                    logger.info(f"Successfully exported to '{filename}'.")
+                    logger.info("Successfully exported to '%s'.", filename)
                 except Exception as e:
-                    logger.error(f"Error exporting to '{filename}': {e}")
+                    logger.error("Error exporting to '%s': %s", filename, e)
                     # Re-raise as a ClickException for better CLI feedback
-                    raise click.ClickException(f"Failed to write to '{output_path}': {e}")
+                    raise click.ClickException(
+                        f"Failed to write to '{output_path}': {e}"
+                    )
 
     except psycopg2.OperationalError as e:
-        logger.error(f"Database connection failed: {e}")
-        raise click.ClickException(f"Could not connect to PostgreSQL. Check your credentials and network. Details: {e}")
+        logger.error("Database connection failed: %s", e)
+        raise click.ClickException(
+            "Could not connect to PostgreSQL. "
+            f"Check your credentials and network. Details: {e}"
+        )
     except Exception as e:
-        logger.error(f"An unexpected error occurred during extraction: {e}")
-        raise click.ClickException(f"An unexpected error occurred during extraction: {e}")
+        logger.error("An unexpected error occurred during extraction: %s", e)
+        raise click.ClickException(
+            f"An unexpected error occurred during extraction: {e}"
+        )
     finally:
         if conn:
             conn.close()

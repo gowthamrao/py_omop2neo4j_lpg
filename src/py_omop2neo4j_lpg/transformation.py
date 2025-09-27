@@ -8,15 +8,16 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
+from glob import glob
+
+import click
 import pandas as pd
-from .config import settings, get_logger
+
+from .config import get_logger, settings
 from .utils import standardize_label, standardize_reltype
 
 logger = get_logger(__name__)
 
-
-import click
-from glob import glob
 
 def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     """
@@ -30,12 +31,15 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     # --- Pre-flight check: Ensure source files exist ---
     csv_files = glob(os.path.join(source_dir, "*.csv"))
     if not csv_files:
-        logger.warning(f"No CSV files found in '{source_dir}'. No files to process for bulk import.")
+        logger.warning(
+            "No CSV files found in '%s'. No files to process for bulk import.",
+            source_dir,
+        )
         click.echo("No files to process for bulk import.")
         return None
 
     os.makedirs(import_dir, exist_ok=True)
-    logger.info(f"Preparing bulk import files in directory: {import_dir}")
+    logger.info("Preparing bulk import files in directory: %s", import_dir)
 
     # --- Define File Paths ---
     paths = {
@@ -60,7 +64,7 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     for key, path in paths.items():
         if "in" not in key and os.path.exists(path):
             os.remove(path)
-            logger.debug(f"Removed existing file: {path}")
+            logger.debug("Removed existing file: %s", path)
 
     # --- Process Metadata (Small Files) ---
     logger.info("Processing Domain and Vocabulary nodes...")
@@ -78,7 +82,7 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     logger.info("Metadata processing complete.")
 
     # --- Process Concepts (Chunked) ---
-    logger.info(f"Processing concepts in chunks of {chunk_size}...")
+    logger.info("Processing concepts in chunks of %s...", chunk_size)
     concept_cols = {
         "concept_id": ":ID",
         "concept_name": "name:string",
@@ -91,7 +95,10 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     }
     is_first_chunk = True
     for chunk in pd.read_csv(
-        paths["concept_in"], chunksize=chunk_size, dtype=str, keep_default_na=False
+        paths["concept_in"],
+        chunksize=chunk_size,
+        dtype=str,
+        keep_default_na=False,
     ):
         # Hold original columns for relationship creation
         original_chunk = chunk.copy()
@@ -113,7 +120,8 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
         # IN_DOMAIN
         rels_domain = original_chunk[["concept_id", "domain_id"]].copy()
         rels_domain.rename(
-            columns={"concept_id": ":START_ID", "domain_id": ":END_ID"}, inplace=True
+            columns={"concept_id": ":START_ID", "domain_id": ":END_ID"},
+            inplace=True,
         )
         rels_domain[":TYPE"] = "IN_DOMAIN"
         rels_domain.to_csv(
@@ -128,17 +136,23 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
         )
         rels_vocab[":TYPE"] = "FROM_VOCABULARY"
         rels_vocab.to_csv(
-            paths["from_vocab_rels"], mode="a", index=False, header=is_first_chunk
+            paths["from_vocab_rels"],
+            mode="a",
+            index=False,
+            header=is_first_chunk,
         )
 
         is_first_chunk = False
     logger.info("Concept processing complete.")
 
     # --- Process Semantic Relationships (Chunked) ---
-    logger.info(f"Processing concept relationships in chunks of {chunk_size}...")
+    logger.info("Processing concept relationships in chunks of %s...", chunk_size)
     is_first_chunk = True
     for chunk in pd.read_csv(
-        paths["relationship_in"], chunksize=chunk_size, dtype=str, keep_default_na=False
+        paths["relationship_in"],
+        chunksize=chunk_size,
+        dtype=str,
+        keep_default_na=False,
     ):
         chunk.rename(
             columns={
@@ -153,16 +167,22 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
         chunk[":TYPE"] = chunk["relationship_id"].apply(standardize_reltype)
         chunk.drop(columns=["relationship_id"], inplace=True)
         chunk.to_csv(
-            paths["semantic_rels"], mode="a", index=False, header=is_first_chunk
+            paths["semantic_rels"],
+            mode="a",
+            index=False,
+            header=is_first_chunk,
         )
         is_first_chunk = False
     logger.info("Semantic relationship processing complete.")
 
     # --- Process Ancestor Relationships (Chunked) ---
-    logger.info(f"Processing concept ancestors in chunks of {chunk_size}...")
+    logger.info("Processing concept ancestors in chunks of %s...", chunk_size)
     is_first_chunk = True
     for chunk in pd.read_csv(
-        paths["ancestor_in"], chunksize=chunk_size, dtype=str, keep_default_na=False
+        paths["ancestor_in"],
+        chunksize=chunk_size,
+        dtype=str,
+        keep_default_na=False,
     ):
         chunk.rename(
             columns={
@@ -175,7 +195,10 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
         )
         chunk[":TYPE"] = "HAS_ANCESTOR"
         chunk.to_csv(
-            paths["ancestor_rels"], mode="a", index=False, header=is_first_chunk
+            paths["ancestor_rels"],
+            mode="a",
+            index=False,
+            header=is_first_chunk,
         )
         is_first_chunk = False
     logger.info("Ancestor relationship processing complete.")
@@ -184,7 +207,8 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     logger.info("Generating neo4j-admin command...")
 
     # NOTE: The file paths in the generated command are relative to the `import_dir`.
-    # The user must ensure their Docker volume mounts this directory to the container's import path.
+    # The user must ensure their Docker volume mounts this directory to the
+    # container's import path.
     node_files = [
         paths["domain_nodes"],
         paths["vocabulary_nodes"],
@@ -221,6 +245,6 @@ def prepare_for_bulk_import(chunk_size: int, import_dir: str):
     final_command = "\n".join(command_parts)
     # A bit of cleanup for cleaner presentation
     final_command = final_command.replace(os.path.sep, "/")
-    logger.info(f"Generated neo4j-admin command:\n{final_command}")
+    logger.info("Generated neo4j-admin command:\n%s", final_command)
 
     return final_command

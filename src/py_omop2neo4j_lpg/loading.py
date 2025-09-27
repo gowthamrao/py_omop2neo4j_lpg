@@ -7,8 +7,16 @@
 #
 # Commercial use beyond a 30-day trial requires a separate license.
 from __future__ import annotations
-from neo4j import GraphDatabase, Driver
-from .config import settings, get_logger
+
+import os
+import pathlib
+import urllib.parse
+from glob import glob
+
+import click
+from neo4j import Driver, GraphDatabase
+
+from .config import get_logger, settings
 
 logger = get_logger(__name__)
 
@@ -30,10 +38,10 @@ def _execute_queries(driver: Driver, queries: list[str], ignore_errors: bool = F
     with driver.session() as session:
         for query in queries:
             try:
-                logger.info(f"Executing: {query[:120].strip()}...")
+                logger.info("Executing: %s...", query[:120].strip())
                 session.run(query)
             except Exception as e:
-                logger.error(f"Failed to execute query: {query[:120].strip()}")
+                logger.error("Failed to execute query: %s", query[:120].strip())
                 logger.error(e)
                 if not ignore_errors:
                     raise
@@ -50,9 +58,9 @@ def clear_database(driver: Driver):
         indexes = session.run("SHOW INDEXES YIELD name").data()
 
     drop_constraints = [
-        f"DROP CONSTRAINT {c['name']}" for c in constraints if c["name"] is not None
+        f"DROP CONSTRAINT {c['name']}" for c in constraints if c.get("name")
     ]
-    drop_indexes = [f"DROP INDEX {i['name']}" for i in indexes if i["name"] is not None]
+    drop_indexes = [f"DROP INDEX {i['name']}" for i in indexes if i.get("name")]
 
     if drop_constraints:
         logger.info("Dropping existing constraints...")
@@ -73,11 +81,26 @@ def create_constraints_and_indexes(driver: Driver):
     """Creates constraints and indexes as defined in the FRD."""
     logger.info("Creating constraints and indexes.")
     queries = [
-        "CREATE CONSTRAINT constraint_concept_id IF NOT EXISTS FOR (c:Concept) REQUIRE c.concept_id IS UNIQUE;",
-        "CREATE CONSTRAINT constraint_domain_id IF NOT EXISTS FOR (d:Domain) REQUIRE d.domain_id IS UNIQUE;",
-        "CREATE CONSTRAINT constraint_vocabulary_id IF NOT EXISTS FOR (v:Vocabulary) REQUIRE v.vocabulary_id IS UNIQUE;",
-        "CREATE INDEX index_concept_code IF NOT EXISTS FOR (c:Concept) ON (c.concept_code);",
-        "CREATE INDEX index_standard_label IF NOT EXISTS FOR (c:Standard) ON (c.concept_id);",
+        (
+            "CREATE CONSTRAINT constraint_concept_id IF NOT EXISTS "
+            "FOR (c:Concept) REQUIRE c.concept_id IS UNIQUE;"
+        ),
+        (
+            "CREATE CONSTRAINT constraint_domain_id IF NOT EXISTS "
+            "FOR (d:Domain) REQUIRE d.domain_id IS UNIQUE;"
+        ),
+        (
+            "CREATE CONSTRAINT constraint_vocabulary_id IF NOT EXISTS "
+            "FOR (v:Vocabulary) REQUIRE v.vocabulary_id IS UNIQUE;"
+        ),
+        (
+            "CREATE INDEX index_concept_code IF NOT EXISTS "
+            "FOR (c:Concept) ON (c.concept_code);"
+        ),
+        (
+            "CREATE INDEX index_standard_label IF NOT EXISTS "
+            "FOR (c:Standard) ON (c.concept_id);"
+        ),
     ]
     _execute_queries(driver, queries)
     logger.info("Constraints and indexes created successfully.")
@@ -85,12 +108,6 @@ def create_constraints_and_indexes(driver: Driver):
 
 # --- Data Loading Orchestrator ---
 
-
-import os
-import click
-from glob import glob
-import pathlib
-import urllib.parse
 
 def run_load_csv(batch_size: int | None = None):
     """
@@ -101,7 +118,12 @@ def run_load_csv(batch_size: int | None = None):
     export_dir = settings.EXPORT_DIR
     csv_files = glob(os.path.join(export_dir, "*.csv"))
     if not csv_files:
-        raise click.ClickException(f"No CSV files found in the export directory '{os.path.abspath(export_dir)}'. Please run the 'extract' command first.")
+        error_msg = (
+            f"No CSV files found in the export directory "
+            f"'{os.path.abspath(export_dir)}'. "
+            "Please run the 'extract' command first."
+        )
+        raise click.ClickException(error_msg)
 
     driver = get_driver()
     try:
@@ -115,7 +137,8 @@ def run_load_csv(batch_size: int | None = None):
             batch_size if batch_size is not None else settings.LOAD_CSV_BATCH_SIZE
         )
         logger.info(
-            f"Starting data loading process with batch size: {effective_batch_size}"
+            "Starting data loading process with batch size: %s",
+            effective_batch_size,
         )
 
         queries = get_loading_queries(effective_batch_size)
@@ -124,7 +147,7 @@ def run_load_csv(batch_size: int | None = None):
         logger.info("All data loading tasks completed successfully.")
 
     except Exception as e:
-        logger.error(f"An error occurred during the Neo4j loading process: {e}")
+        logger.error("An error occurred during the Neo4j loading process: %s", e)
         raise
     finally:
         driver.close()
@@ -134,11 +157,6 @@ def run_load_csv(batch_size: int | None = None):
 def get_loading_queries(batch_size: int) -> list[str]:
     """Returns a list of all LOAD CSV queries."""
 
-    # The base directory inside the container that is the mount point.
-    # This corresponds to the `volumes` section in the docker-compose files.
-    # For tests, it's `export_test`, for production, it's `export`.
-    container_import_dir = pathlib.Path("/import")
-
     def get_file_uri(filename: str) -> str:
         """
         Constructs a full, URL-encoded file URI for a given CSV filename,
@@ -147,15 +165,10 @@ def get_loading_queries(batch_size: int) -> list[str]:
         # Get the full path to the CSV file on the host
         host_csv_path = pathlib.Path(settings.EXPORT_DIR) / filename
 
-        # This is the base directory on the host that is mounted to /import
-        # We assume the parent of EXPORT_DIR or EXPORT_DIR itself is the mount point.
-        # In tests, EXPORT_DIR is `export_test/dir with spaces`, so parent is `export_test`.
-        # In production, EXPORT_DIR is `export`, so it is its own parent in a sense.
-
         # A simple heuristic: find which known base dir is a parent of the csv path
-        host_mount_point = pathlib.Path('export_test')
-        if not str(host_csv_path).startswith('export_test'):
-            host_mount_point = pathlib.Path('export')
+        host_mount_point = pathlib.Path("export_test")
+        if not str(host_csv_path).startswith("export_test"):
+            host_mount_point = pathlib.Path("export")
 
         # Get the path relative to the mount point
         relative_path = host_csv_path.relative_to(host_mount_point)
@@ -200,14 +213,18 @@ def get_loading_queries(batch_size: int) -> list[str]:
             valid_start_date: date(row.valid_start_date),
             valid_end_date: date(row.valid_end_date),
             invalid_reason: row.invalid_reason,
-            synonyms: CASE WHEN row.synonyms IS NOT NULL THEN split(row.synonyms, '|') ELSE [] END
+            synonyms: CASE
+                WHEN row.synonyms IS NOT NULL THEN split(row.synonyms, '|')
+                ELSE []
+            END
         }})
 
         // 2. Add dynamic and conditional labels
         WITH c, row
-        // Sanitize domain_id to create a valid label (e.g., "Drug/Ingredient" -> "DrugIngredient")
-        // This mimics the logic from utils.standardize_label
-        WITH c, row, apoc.text.upperCamelCase(apoc.text.regreplace(row.domain_id, '[^A-Za-z0-9]+', ' ')) AS standardizedLabel
+        // Sanitize domain_id to create a valid label
+        WITH c, row, apoc.text.upperCamelCase(
+            apoc.text.regreplace(row.domain_id, '[^A-Za-z0-9]+', ' ')
+        ) AS standardizedLabel
         CALL apoc.create.addLabels(c, [standardizedLabel]) YIELD node
 
         WITH c, row
@@ -229,7 +246,10 @@ def get_loading_queries(batch_size: int) -> list[str]:
         LOAD CSV WITH HEADERS FROM '{get_file_uri('concept_relationship.csv')}' AS row
         MATCH (c1:Concept {{concept_id: toInteger(row.concept_id_1)}})
         MATCH (c2:Concept {{concept_id: toInteger(row.concept_id_2)}})
-        WITH c1, c2, row, toupper(apoc.text.replace(row.relationship_id, '[^A-Za-z0-9_]+', '_')) AS relType
+        WITH c1, c2, row,
+            toupper(
+                apoc.text.replace(row.relationship_id, '[^A-Za-z0-9_]+', '_')
+            ) AS relType
         CALL apoc.create.relationship(c1, relType, {{
             valid_start: date(row.valid_start_date),
             valid_end: date(row.valid_end_date),

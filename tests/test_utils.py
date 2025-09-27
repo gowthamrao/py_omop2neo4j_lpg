@@ -8,11 +8,11 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import unittest
+
 from py_omop2neo4j_lpg.utils import standardize_label, standardize_reltype
 
 
 class TestUtils(unittest.TestCase):
-
     def test_standardize_label(self):
         test_cases = [
             ("Hello World", "HelloWorld"),

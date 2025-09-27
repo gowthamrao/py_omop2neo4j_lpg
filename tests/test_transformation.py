@@ -7,16 +7,16 @@
 #
 # Commercial use beyond a 30-day trial requires a separate license.
 
-import unittest
 import os
 import shutil
+import unittest
+
 import pandas as pd
-from py_omop2neo4j_lpg.transformation import prepare_for_bulk_import
 from py_omop2neo4j_lpg.config import settings
+from py_omop2neo4j_lpg.transformation import prepare_for_bulk_import
 
 
 class TestTransformation(unittest.TestCase):
-
     def setUp(self):
         """Set up a temporary directory with dummy CSV files for testing."""
         self.test_export_dir = os.path.join(settings.EXPORT_DIR, "test_temp")
@@ -248,10 +248,10 @@ class TestTransformation(unittest.TestCase):
 
         # The dummy file should be gone, and the new file should not be empty
         self.assertTrue(os.path.exists(dummy_file_path))
-        with open(dummy_file_path, "r") as f:
+        with open(dummy_file_path) as f:
             content = f.read()
             self.assertNotEqual(content, "dummy content")
-            self.assertIn(":ID", content) # Check for header
+            self.assertIn(":ID", content)  # Check for header
 
 
 if __name__ == "__main__":

@@ -9,11 +9,11 @@
 
 import unittest
 from unittest.mock import MagicMock
+
 from py_omop2neo4j_lpg import validation
 
 
 class TestValidation(unittest.TestCase):
-
     def test_get_node_counts_new_format(self):
         # Arrange
         mock_driver = MagicMock()
@@ -102,7 +102,8 @@ class TestValidation(unittest.TestCase):
         self.assertIn("IS_A", data["relationships_summary"])
         self.assertEqual(data["ancestors_summary"]["count"], 1)
         self.assertIn(
-            "Cardiovascular Agent", data["ancestors_summary"]["sample_ancestors"]
+            "Cardiovascular Agent",
+            data["ancestors_summary"]["sample_ancestors"],
         )
 
     def test_verify_sample_concept_not_found(self):
@@ -121,7 +122,10 @@ class TestValidation(unittest.TestCase):
         # Assert
         self.assertIsNone(data)
 
-    @unittest.mock.patch("py_omop2neo4j_lpg.validation.get_driver", side_effect=Exception("mock connection error"))
+    @unittest.mock.patch(
+        "py_omop2neo4j_lpg.validation.get_driver",
+        side_effect=Exception("mock connection error"),
+    )
     def test_run_validation_failure(self, mock_get_driver):
         """
         Tests that run_validation catches exceptions and returns an error dictionary.

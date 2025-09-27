@@ -1,7 +1,9 @@
 import os
-import psycopg2
+
 import pandas as pd
+import psycopg2
 from dotenv import load_dotenv
+
 
 def load_vocabulary_to_postgres():
     """
@@ -23,36 +25,52 @@ def load_vocabulary_to_postgres():
     try:
         # Establish connection
         conn = psycopg2.connect(
-            dbname=database,
-            user=username,
-            password=password,
-            host=server,
-            port=port
+            dbname=database, user=username, password=password, host=server, port=port
         )
         cursor = conn.cursor()
         print("Successfully connected to PostgreSQL.")
 
         # List of vocabulary tables to load
         vocab_tables = [
-            "CONCEPT", "VOCABULARY", "DOMAIN", "CONCEPT_CLASS",
-            "CONCEPT_RELATIONSHIP", "RELATIONSHIP", "CONCEPT_SYNONYM",
-            "CONCEPT_ANCESTOR", "DRUG_STRENGTH"
+            "CONCEPT",
+            "VOCABULARY",
+            "DOMAIN",
+            "CONCEPT_CLASS",
+            "CONCEPT_RELATIONSHIP",
+            "RELATIONSHIP",
+            "CONCEPT_SYNONYM",
+            "CONCEPT_ANCESTOR",
+            "DRUG_STRENGTH",
         ]
 
         for table_name in vocab_tables:
             file_path = os.path.join(vocab_file_dir, f"{table_name}.csv")
             if os.path.exists(file_path):
-                print(f"Loading data from {file_path} into {cdm_schema}.{table_name}...")
+                print(
+                    f"Loading data from {file_path} "
+                    f"into {cdm_schema}.{table_name}..."
+                )
                 # Use pandas to read CSV in chunks
-                for chunk in pd.read_csv(file_path, sep='\\t', chunksize=10000, quoting=3, on_bad_lines='warn'):
+                for chunk in pd.read_csv(
+                    file_path,
+                    sep="\t",
+                    chunksize=10000,
+                    quoting=3,
+                    on_bad_lines="warn",
+                ):
                     # Create a temporary in-memory file for the chunk
                     from io import StringIO
+
                     buffer = StringIO()
-                    chunk.to_csv(buffer, index=False, header=False, sep='\\t')
+                    chunk.to_csv(buffer, index=False, header=False, sep="\t")
                     buffer.seek(0)
 
                     # Use COPY FROM for efficient loading
-                    cursor.copy_expert(f"COPY {cdm_schema}.{table_name} FROM STDIN WITH CSV HEADER DELIMITER E'\\t'", buffer)
+                    copy_sql = (
+                        f"COPY {cdm_schema}.{table_name} FROM STDIN "
+                        "WITH CSV HEADER DELIMITER E'\\t'"
+                    )
+                    cursor.copy_expert(copy_sql, buffer)
                 conn.commit()
                 print(f"Successfully loaded {table_name}.")
             else:
@@ -66,6 +84,7 @@ def load_vocabulary_to_postgres():
             cursor.close()
             conn.close()
             print("PostgreSQL connection is closed.")
+
 
 if __name__ == "__main__":
     load_vocabulary_to_postgres()

@@ -8,12 +8,12 @@
 # Commercial use beyond a 30-day trial requires a separate license.
 
 import os
-import tempfile
 import shutil
-import pytest
-from click.testing import CliRunner
+import tempfile
 from unittest.mock import patch
 
+import pytest
+from click.testing import CliRunner
 from py_omop2neo4j_lpg.cli import cli
 from py_omop2neo4j_lpg.config import settings
 
@@ -37,7 +37,9 @@ def test_extract_with_path_with_spaces(pristine_db):
 
             # Check that a representative file was created in the correct directory
             expected_file = os.path.join(spaced_dir, "concepts_optimized.csv")
-            assert os.path.exists(expected_file), f"File not found in spaced directory: {expected_file}"
+            assert os.path.exists(
+                expected_file
+            ), f"File not found in spaced directory: {expected_file}"
     finally:
         # Clean up the temporary directory
         shutil.rmtree(base_dir)

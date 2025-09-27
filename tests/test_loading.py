@@ -7,9 +7,13 @@
 #
 # Commercial use beyond a 30-day trial requires a separate license.
 
-import pytest
+import os
 from unittest.mock import MagicMock, patch
+
+import pytest
 from py_omop2neo4j_lpg import loading
+from py_omop2neo4j_lpg.config import settings
+
 
 def test_execute_queries_raises_on_error():
     """
@@ -23,11 +27,12 @@ def test_execute_queries_raises_on_error():
     with pytest.raises(Exception, match="mock db error"):
         loading._execute_queries(mock_driver, ["FAILING QUERY"], ignore_errors=False)
 
-import os
-from py_omop2neo4j_lpg.config import settings
 
 @patch("py_omop2neo4j_lpg.loading.get_driver")
-@patch("py_omop2neo4j_lpg.loading.clear_database", side_effect=Exception("mock clear error"))
+@patch(
+    "py_omop2neo4j_lpg.loading.clear_database",
+    side_effect=Exception("mock clear error"),
+)
 def test_run_load_csv_failure(mock_clear_db, mock_get_driver, tmp_path):
     """
     Tests that run_load_csv catches and re-raises exceptions from downstream processes.
