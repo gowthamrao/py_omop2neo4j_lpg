@@ -2,187 +2,39 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+    branches:
+      - main
+      - develop
 
 jobs:
-  unit-test:
-    name: Unit Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+  build:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
     strategy:
-      fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']
-        os: [ubuntu-latest, macos-latest, windows-2025]
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v5.0.0
-
-      - name: Install Poetry
-        run: |
-          python3 -m pip install pipx
-          pipx install poetry
-
-      - name: Set up Python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v6.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
-
-      - name: Dump environment details
-        run: |
-          echo "OS/Runner: ${{ runner.os }}"
-          echo "Python version:"
-          python --version
-          echo "Poetry version:"
-          poetry --version
-          echo "Poetry Environment Info:"
-          poetry env info
-          echo "PATH:"
-          echo $PATH
-        shell: bash
-
-      - name: Install dependencies
-        run: poetry install --no-interaction -vv --with test
-
-      - name: Verify Dependency Tree
-        run: poetry show --tree
-
-      - name: Run Unit Tests
-        run: poetry run pytest -vv -m "unit" --cov=./ --cov-report=xml:coverage-unit.xml
-
-      - name: Upload Unit Test coverage to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@e11512345f1b1a7229758d923579b29d107849e7 # v5.5.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage-unit.xml
-          flags: ${{ matrix.os }}-py${{ matrix.python-version }}-unit
-          fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload reports on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: unit-test-failure-reports-${{ matrix.os }}-${{ matrix.python-version }}
-          path: |
-            coverage-unit.xml
-
-  integration-test:
-    name: Integration Tests (Python ${{ matrix.python-version }})
-    needs: unit-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.11', '3.12']
 
-    services:
-      postgres-test:
-        image: postgres:13
-        env:
-          POSTGRES_USER: testuser
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: testdb
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U testuser -d testdb"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-          -v ${{ github.workspace }}/tests/sample_data/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-      neo4j-test:
-        image: neo4j:latest
-        env:
-          NEO4J_AUTH: neo4j/StrongPass123
-          NEO4J_apoc_import_file_enabled: true
-          NEO4J_apoc_import_file_use__neo4j__config: true
-          NEO4JLABS_PLUGINS: '["apoc"]'
-        ports:
-          - 7475:7474
-          - 7688:7687
-        options: >-
-          --health-cmd "wget -O /dev/null --server-response --timeout=2 http://localhost:7474 2>&1 | awk '/^  HTTP/{print $$2}' | grep -q 200"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-          -v ${{ github.workspace }}/export_test:/import
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v5.0.0
+    - uses: actions/checkout@v3
 
-      - name: Install Poetry
-        run: |
-          python3 -m pip install pipx
-          pipx install poetry
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
 
-      - name: Set up Python ${{ matrix.python-version }}
-        id: setup-python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v6.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
 
-      - name: Dump environment details
-        run: |
-          echo "OS/Runner: ${{ runner.os }}"
-          echo "Python version:"
-          python --version
-          echo "Poetry version:"
-          poetry --version
-          echo "Poetry Environment Info:"
-          poetry env info
-          echo "PATH:"
-          echo $PATH
-        shell: bash
+    - name: Install dependencies
+      run: poetry install
 
-      - name: Install dependencies
-        run: poetry install --no-interaction -vv --with test
+    - name: Run tests
+      run: |
+        poetry run pytest --cov=./ --cov-report=xml
 
-      - name: Verify Dependency Tree
-        run: poetry show --tree
-
-      - name: Run Integration Tests
-        run: poetry run pytest -vv -m "integration" --cov=./ --cov-report=xml:coverage-integration.xml
-        env:
-          # Assuming tests will connect to localhost and the mapped ports.
-          # These would be read from a .env.test file in a real scenario,
-          # but we can set them here for clarity.
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5433
-          NEO4J_HOST: localhost
-          NEO4J_BOLT_PORT: 7688
-
-      - name: Upload Integration Test coverage to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@e11512345f1b1a7229758d923579b29d107849e7 # v5.5.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage-integration.xml
-          flags: ubuntu-latest-py${{ matrix.python-version }}-integration
-          fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload reports on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: integration-test-failure-reports-ubuntu-latest-${{ matrix.python-version }}
-          path: |
-            coverage-integration.xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: true
